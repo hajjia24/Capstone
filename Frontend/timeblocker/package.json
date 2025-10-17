@@ -10,19 +10,26 @@
     "format": "biome format --write"
   },
   "dependencies": {
+    "acorn": "^8.15.0",
     "firebase": "^12.4.0",
-    "next": "15.5.5",
+    "markdown-it": "^14.1.0",
+    "@types/markdown-it": "^14.1.2",
+    "next": "^15.0.0",
     "next-auth": "^4.24.11",
-    "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.0",
     "@tailwindcss/postcss": "^4",
+    "@types/markdown-it": "^14.1.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "engines": {
+    "node": "20"
   }
 }
