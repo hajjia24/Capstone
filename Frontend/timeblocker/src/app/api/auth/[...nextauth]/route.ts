@@ -1,16 +1,9 @@
-import NextAuth from "next-auth";
-import GitHub from "next-auth/providers/github";
+import { NextResponse } from 'next/server';
 
-const handler = NextAuth({
-  providers: [
-    GitHub({
-      clientId: process.env.GITHUB_ID!,
-      clientSecret: process.env.GITHUB_SECRET!,
-    }),
-  ],
-  pages: {
-    signIn: '/login',
-  },
-});
+export async function GET() {
+  return NextResponse.json({ error: 'Not found' }, { status: 404 });
+}
 
-export { handler as GET, handler as POST };
+export async function POST() {
+  return NextResponse.json({ error: 'Not found' }, { status: 404 });
+}
