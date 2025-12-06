@@ -6,7 +6,7 @@ const JWT_SECRET = process.env.AUTH_JWT_SECRET || 'dev_secret_change_me';
 
 export async function GET() {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('auth_token')?.value;
     if (!token) return NextResponse.json({ user: null });
 
