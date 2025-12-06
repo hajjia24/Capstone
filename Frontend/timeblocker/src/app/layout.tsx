@@ -13,6 +13,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <meta name="application-name" content="TimeBlocker" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -23,6 +25,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#2563eb" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon-192x192.svg" />
+        <link rel="icon" href="/favicon.ico" />
       </head>
       <body className="bg-white">
         <Providers>

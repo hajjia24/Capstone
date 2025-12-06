@@ -3,10 +3,11 @@
   "short_name": "TimeBlocker",
   "description": "Time blocking calendar app for managing your daily schedule",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#2563eb",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/icon-192x192.png",

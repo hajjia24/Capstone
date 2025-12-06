@@ -1,1 +1,65 @@
-if(!self.define){let e,s={};const n=(n,a)=>(n=new URL(n+".js",a).href,s[n]||new Promise(s=>{if("document"in self){const e=document.createElement("script");e.src=n,e.onload=s,document.head.appendChild(e)}else e=n,importScripts(n),s()}).then(()=>{let e=s[n];if(!e)throw new Error(`Module ${n} didn’t register its module`);return e}));self.define=(a,t)=>{const c=e||("document"in self?document.currentScript.src:"")||location.href;if(s[c])return;let i={};const r=e=>n(e,c),f={module:{uri:c},exports:i,require:r};s[c]=Promise.all(a.map(e=>f[e]||r(e))).then(e=>(t(...e),i))}}define(["./workbox-4754cb34"],function(e){"use strict";importScripts(),self.skipWaiting(),e.clientsClaim(),e.precacheAndRoute([{url:"/_next/app-build-manifest.json",revision:"1a7205f09aca8803b1a76f631f2a87ee"},{url:"/_next/static/GrQYtg2ZesYQe77amLfDE/_buildManifest.js",revision:"577a4c906306e0a02294245decd40165"},{url:"/_next/static/GrQYtg2ZesYQe77amLfDE/_ssgManifest.js",revision:"b6652df95db52feb4daf4eca35380933"},{url:"/_next/static/chunks/139.7a5a8e93a21948c1.js",revision:"7a5a8e93a21948c1"},{url:"/_next/static/chunks/255-47484af636b98715.js",revision:"47484af636b98715"},{url:"/_next/static/chunks/4bd1b696-c023c6e3521b1417.js",revision:"c023c6e3521b1417"},{url:"/_next/static/chunks/602-77ed6ab0c18e0429.js",revision:"77ed6ab0c18e0429"},{url:"/_next/static/chunks/646.f342b7cffc01feb0.js",revision:"f342b7cffc01feb0"},{url:"/_next/static/chunks/app/_not-found/page-871dbe36a7103c9c.js",revision:"871dbe36a7103c9c"},{url:"/_next/static/chunks/app/api/auth/%5B...nextauth%5D/route-e80ec1beffdc0f35.js",revision:"e80ec1beffdc0f35"},{url:"/_next/static/chunks/app/api/auth/me/route-e80ec1beffdc0f35.js",revision:"e80ec1beffdc0f35"},{url:"/_next/static/chunks/app/api/auth/signin/route-e80ec1beffdc0f35.js",revision:"e80ec1beffdc0f35"},{url:"/_next/static/chunks/app/api/auth/signout/route-e80ec1beffdc0f35.js",revision:"e80ec1beffdc0f35"},{url:"/_next/static/chunks/app/api/auth/signup/route-e80ec1beffdc0f35.js",revision:"e80ec1beffdc0f35"},{url:"/_next/static/chunks/app/layout-7538533c922f8bb7.js",revision:"7538533c922f8bb7"},{url:"/_next/static/chunks/app/login/page-c66a39cddb17f25b.js",revision:"c66a39cddb17f25b"},{url:"/_next/static/chunks/app/page-a25f99612d25700f.js",revision:"a25f99612d25700f"},{url:"/_next/static/chunks/framework-37f3832b4337c515.js",revision:"37f3832b4337c515"},{url:"/_next/static/chunks/main-ac4b6f2c276583a7.js",revision:"ac4b6f2c276583a7"},{url:"/_next/static/chunks/main-app-d27c37be8c6a8fee.js",revision:"d27c37be8c6a8fee"},{url:"/_next/static/chunks/pages/_app-82835f42865034fa.js",revision:"82835f42865034fa"},{url:"/_next/static/chunks/pages/_error-013f4188946cdd04.js",revision:"013f4188946cdd04"},{url:"/_next/static/chunks/polyfills-42372ed130431b0a.js",revision:"846118c33b2c0e922d7b3a7676f81f6f"},{url:"/_next/static/chunks/webpack-585632eef079e1cf.js",revision:"585632eef079e1cf"},{url:"/_next/static/css/47bef3384207dd06.css",revision:"47bef3384207dd06"},{url:"/file.svg",revision:"d09f95206c3fa0bb9bd9fefabfd0ea71"},{url:"/globe.svg",revision:"2aaafa6a49b6563925fe440891e32717"},{url:"/icon-192x192.svg",revision:"b2dd5dc5059986c8e2a4b9b210f54d52"},{url:"/icon-512x512.svg",revision:"0a757a40d998dbf454a2d3eac5b117bf"},{url:"/manifest.json",revision:"1e1fa51e068162edb0b9eed4fa9f2ebb"},{url:"/next.svg",revision:"8e061864f388b47f33a1c3780831193e"},{url:"/vercel.svg",revision:"c0af2f507b369b085b35ef4bbe3bcf1e"},{url:"/window.svg",revision:"a2760511c65806022ad20adf74370ff3"}],{ignoreURLParametersMatching:[]}),e.cleanupOutdatedCaches(),e.registerRoute("/",new e.NetworkFirst({cacheName:"start-url",plugins:[{cacheWillUpdate:async({request:e,response:s,event:n,state:a})=>s&&"opaqueredirect"===s.type?new Response(s.body,{status:200,statusText:"OK",headers:s.headers}):s}]}),"GET"),e.registerRoute(/^https:\/\/fonts\.(?:gstatic)\.com\/.*/i,new e.CacheFirst({cacheName:"google-fonts-webfonts",plugins:[new e.ExpirationPlugin({maxEntries:4,maxAgeSeconds:31536e3})]}),"GET"),e.registerRoute(/^https:\/\/fonts\.(?:googleapis)\.com\/.*/i,new e.StaleWhileRevalidate({cacheName:"google-fonts-stylesheets",plugins:[new e.ExpirationPlugin({maxEntries:4,maxAgeSeconds:604800})]}),"GET"),e.registerRoute(/\.(?:eot|otf|ttc|ttf|woff|woff2|font.css)$/i,new e.StaleWhileRevalidate({cacheName:"static-font-assets",plugins:[new e.ExpirationPlugin({maxEntries:4,maxAgeSeconds:604800})]}),"GET"),e.registerRoute(/\.(?:jpg|jpeg|gif|png|svg|ico|webp)$/i,new e.StaleWhileRevalidate({cacheName:"static-image-assets",plugins:[new e.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\/_next\/image\?url=.+$/i,new e.StaleWhileRevalidate({cacheName:"next-image",plugins:[new e.ExpirationPlugin({maxEntries:64,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:mp3|wav|ogg)$/i,new e.CacheFirst({cacheName:"static-audio-assets",plugins:[new e.RangeRequestsPlugin,new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:mp4)$/i,new e.CacheFirst({cacheName:"static-video-assets",plugins:[new e.RangeRequestsPlugin,new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:js)$/i,new e.StaleWhileRevalidate({cacheName:"static-js-assets",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:css|less)$/i,new e.StaleWhileRevalidate({cacheName:"static-style-assets",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\/_next\/data\/.+\/.+\.json$/i,new e.StaleWhileRevalidate({cacheName:"next-data",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(/\.(?:json|xml|csv)$/i,new e.NetworkFirst({cacheName:"static-data-assets",plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(({url:e})=>{if(!(self.origin===e.origin))return!1;const s=e.pathname;return!s.startsWith("/api/auth/")&&!!s.startsWith("/api/")},new e.NetworkFirst({cacheName:"apis",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:16,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(({url:e})=>{if(!(self.origin===e.origin))return!1;return!e.pathname.startsWith("/api/")},new e.NetworkFirst({cacheName:"others",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:86400})]}),"GET"),e.registerRoute(({url:e})=>!(self.origin===e.origin),new e.NetworkFirst({cacheName:"cross-origin",networkTimeoutSeconds:10,plugins:[new e.ExpirationPlugin({maxEntries:32,maxAgeSeconds:3600})]}),"GET")});
+﻿const CACHE_NAME = 'timeblocker-shell-v2';
+const OFFLINE_URLS = ['/', '/manifest.json', '/icon-192x192.png', '/icon-512x512.png'];
+
+self.addEventListener('install', (event) => {
+  console.log('[SW] Installing...');
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => {
+        console.log('[SW] Adding to cache:', OFFLINE_URLS);
+        return cache.addAll(OFFLINE_URLS).catch((err) => {
+          console.error('[SW] Cache.addAll error:', err);
+        });
+      })
+      .catch((err) => {
+        console.error('[SW] Cache open error:', err);
+      })
+  );
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  console.log('[SW] Activating...');
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys
+          .filter((key) => key !== CACHE_NAME)
+          .map((key) => {
+            console.log('[SW] Deleting old cache:', key);
+            return caches.delete(key);
+          })
+      );
+    })
+  );
+  self.clients.claim();
+});
+
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  if (request.method !== 'GET' || request.url.startsWith('chrome-extension')) return;
+
+  event.respondWith(
+    caches.match(request)
+      .then((cached) => {
+        if (cached) {
+          return cached;
+        }
+        return fetch(request).then((response) => {
+          if (response.ok && request.url.startsWith(self.location.origin)) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, copy).catch((err) => {
+                console.warn('[SW] Cache.put error:', err);
+              });
+            });
+          }
+          return response;
+        });
+      })
+      .catch((err) => {
+        console.error('[SW] Fetch error:', err);
+        return caches.match('/');
+      })
+  );
+});

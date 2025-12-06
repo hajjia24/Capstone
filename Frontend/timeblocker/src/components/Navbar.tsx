@@ -12,7 +12,6 @@ export default function Navbar() {
   const view = searchParams?.get('view') || 'week';
   const [pwaPrompt, setPwaPrompt] = React.useState<any>(null);
   const [isStandalone, setIsStandalone] = React.useState(false);
-  const [canInstall, setCanInstall] = React.useState(false);
 
   const setView = (v: string) => {
     const params = new URLSearchParams(searchParams?.toString() || '');
@@ -30,12 +29,8 @@ export default function Navbar() {
     const handler = (e: Event) => {
       e.preventDefault();
       setPwaPrompt(e as any);
-      setCanInstall(true);
     };
     window.addEventListener('beforeinstallprompt', handler);
-
-    // Show the button on all devices (desktop and mobile)
-    setCanInstall(true);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
@@ -74,7 +69,7 @@ export default function Navbar() {
             Day
           </button>
         </div>
-        {!isStandalone && canInstall && (
+        {!isStandalone && (
           <button
             onClick={handleInstall}
             className="sm:hidden ml-2 px-3 py-1 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap flex items-center justify-center"
@@ -98,7 +93,7 @@ export default function Navbar() {
           </button>
         </div>
 
-        {!isStandalone && canInstall && (
+        {!isStandalone && (
           <button
             onClick={handleInstall}
             className="hidden sm:inline-flex px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 whitespace-nowrap min-w-[180px] items-center justify-center"
