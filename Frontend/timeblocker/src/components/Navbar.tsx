@@ -34,11 +34,8 @@ export default function Navbar() {
     };
     window.addEventListener('beforeinstallprompt', handler);
 
-    // On localhost without beforeinstallprompt, still show the button on mobile
-    const isMobile = /iPhone|iPad|iPod|Android/.test(navigator.userAgent);
-    if (isMobile) {
-      setCanInstall(true);
-    }
+    // Show the button on all devices (desktop and mobile)
+    setCanInstall(true);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
