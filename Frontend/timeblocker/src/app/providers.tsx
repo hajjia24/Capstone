@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { registerServiceWorker } from '../lib/pwa';
 import type { User } from '@supabase/supabase-js';
 
 type AuthContextType = {
@@ -29,6 +30,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user || null);
     });
+
+    // Register PWA service worker
+    registerServiceWorker();
 
     return () => subscription?.unsubscribe();
   }, []);

@@ -2,14 +2,21 @@ import { Pool } from 'pg';
 
 const connectionString = process.env.DATABASE_URL;
 
-if (!connectionString) {
-  throw new Error('DATABASE_URL environment variable is required');
+let pool: Pool | null = null;
+
+function getPool() {
+  if (!connectionString) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
+  if (!pool) {
+    pool = new Pool({ connectionString });
+  }
+  return pool;
 }
 
-const pool = new Pool({ connectionString });
-
 export async function query(text: string, params?: any[]) {
-  const res = await pool.query(text, params);
+  const p = getPool();
+  const res = await p.query(text, params);
   return res;
 }
 
@@ -26,4 +33,9 @@ export async function createUser(email: string, passwordHash: string) {
   return rows[0];
 }
 
-export default pool;
+export default {
+  query,
+  getUserByEmail,
+  createUser,
+  getPool,
+};

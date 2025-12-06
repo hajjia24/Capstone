@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, use } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/app/providers';
 import { supabase } from '@/lib/supabase';
@@ -297,7 +297,7 @@ function DraggableBlock({ block, onEdit, cellWidth, cellHeight, startHour, maxHo
 
 export default function Timeblocker() {
   const search = useSearchParams();
-  const view = search?.get('view') || 'week';
+  const view = search?.get('view') ?? 'week';
   const { user } = useAuth();
   const startHour = 4;
   // show hours from startHour up through the next-day 3 AM (exclude the final 4 AM row)

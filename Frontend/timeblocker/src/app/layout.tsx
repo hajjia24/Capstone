@@ -3,6 +3,7 @@
 import './globals.css'
 import { Providers } from './providers'
 import Navbar from '@/components/Navbar'
+import { Suspense } from 'react'
 
 export default function RootLayout({
   children,
@@ -25,7 +26,9 @@ export default function RootLayout({
       </head>
       <body className="bg-white">
         <Providers>
-          <Navbar />
+          <Suspense fallback={<div className="h-16 bg-blue-600" />}>
+            <Navbar />
+          </Suspense>
           <main className="pt-28 sm:pt-16 bg-white min-h-screen">
             {children}
           </main>
