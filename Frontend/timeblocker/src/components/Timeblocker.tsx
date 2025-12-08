@@ -267,7 +267,7 @@ function DraggableBlock({ block, onEdit, cellWidth, cellHeight, startHour, maxHo
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      style={{ position: 'absolute', left: `${left}px`, top: `${top}px`, width: `${cellWidth - 12}px`, height: `${height}px`, zIndex: 30 }}
+      style={{ position: 'absolute', left: `${left}px`, top: `${top}px`, width: `${cellWidth}px`, height: `${height}px`, zIndex: 30 }}
     >
       <div className="text-white rounded p-1 text-sm h-full box-border relative select-none" style={{ backgroundColor: block.color || '#ef4444' }}>
         {isHovered && (
