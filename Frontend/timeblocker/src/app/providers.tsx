@@ -21,14 +21,38 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Check current session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user || null);
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Error getting session:', error);
+        // Clear any stale session data
+        supabase.auth.signOut();
+        setUser(null);
+      } else {
+        setUser(session?.user || null);
+      }
       setLoading(false);
     });
 
     // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event);
+      
+      if (event === 'TOKEN_REFRESHED') {
+        console.log('Token refreshed successfully');
+      }
+      
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+      } else if (session) {
+        setUser(session.user);
+      }
+      
+      // Handle token refresh errors
+      if (event === 'TOKEN_REFRESHED' && !session) {
+        console.error('Token refresh failed, signing out');
+        await supabase.auth.signOut();
+        setUser(null);
+      }
     });
 
     // Register PWA service worker

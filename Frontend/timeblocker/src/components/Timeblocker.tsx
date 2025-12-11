@@ -1,332 +1,49 @@
 "use client";
 
-import React, { useMemo, useState, useRef, use } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/app/providers';
-import { supabase } from '@/lib/supabase';
-
-type Block = {
-  id: string;
-  day: number; // 0..6
-  startTime: number; // hour with decimal (e.g., 9.5 for 9:30 AM)
-  endTime: number; // hour with decimal
-  title?: string;
-  description?: string;
-  color?: string;
-};
-
-function hourRange(start = 7, end = 20) {
-  const arr: number[] = [];
-  for (let h = start; h <= end; h++) arr.push(h);
-  return arr;
-}
-
-function formatHour(h: number) {
-  const h24 = h % 24;
-  if (h24 === 0) return '12 AM';
-  if (h24 === 12) return '12 PM';
-  if (h24 > 12) return `${h24 - 12} PM`;
-  return `${h24} AM`;
-}
-
-function BlockEditModal({ block, daysInfo, onSave, onDelete, onClose }: { block: Block; daysInfo: Array<{ short: string; num: number; date: Date }>; onSave: (block: Block) => void; onDelete: (id: string) => void; onClose: () => void }) {
-  const [title, setTitle] = useState(block.title || '');
-  const [description, setDescription] = useState(block.description || '');
-  const [selectedDay, setSelectedDay] = useState(block.day);
-  const [startTime, setStartTime] = useState<number | null>(block.startTime);
-  const [endTime, setEndTime] = useState<number | null>(block.endTime);
-  const [color, setColor] = useState<string>(block.color || '#ef4444');
-  const modalRef = useRef<HTMLDivElement | null>(null);
-  const dragStartRef = useRef<{x:number;y:number;origX:number|null;origY:number|null;origW:number;origH:number}|null>(null);
-  const [pos, setPos] = useState<{x:number|null;y:number|null}>({ x: null, y: null });
-  const suppressOverlayClickRef = useRef(false);
-  const generateTimeOptions = () => {
-    const options: { value: number; label: string }[] = [];
-    for (let h = 4; h < 28; h++) {
-      options.push({ value: h, label: formatHour(h) });
-      options.push({ value: h + 0.5, label: `${formatHour(h).replace(' AM', '').replace(' PM', '')}:30 ${h % 24 >= 12 ? 'PM' : 'AM'}` });
-    }
-    return options;
-  };
-
-  
-
-  const timeOptions = generateTimeOptions();
-
-  const getEndTimeOptions = () => {
-    if (startTime === null) return [];
-    return timeOptions.filter((opt) => opt.value >= startTime + 0.5);
-  };
-
-  const handleSave = () => {
-    if (startTime !== null && endTime !== null && endTime >= startTime + 0.5) {
-      onSave({
-        ...block,
-        title,
-        description,
-        day: selectedDay,
-        startTime,
-        endTime,
-        color,
-      });
-    }
-  };
-
-  const isNewBlock = !block.title && !block.description;
-
-  // drag handlers for modal header
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault();
-    const rect = modalRef.current?.getBoundingClientRect();
-    const origX = rect ? rect.left : (pos.x ?? window.innerWidth / 2 - 200);
-    const origY = rect ? rect.top : (pos.y ?? window.innerHeight / 2 - 100);
-    const origW = rect ? rect.width : 320;
-    const origH = rect ? rect.height : 240;
-    dragStartRef.current = { x: e.clientX, y: e.clientY, origX, origY, origW, origH };
-    // prevent the overlay click that follows mouseup after a drag
-    suppressOverlayClickRef.current = true;
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  };
-
-  const onMouseMove = (ev: MouseEvent) => {
-    if (!dragStartRef.current) return;
-    const s = dragStartRef.current;
-    const dx = ev.clientX - s.x;
-    const dy = ev.clientY - s.y;
-    let newX = (s.origX ?? 0) + dx;
-    let newY = (s.origY ?? 0) + dy;
-    // clamp so the modal stays fully visible
-    const maxX = Math.max(0, window.innerWidth - s.origW);
-    const maxY = Math.max(0, window.innerHeight - s.origH);
-    newX = Math.max(0, Math.min(newX, maxX));
-    newY = Math.max(0, Math.min(newY, maxY));
-    setPos({ x: newX, y: newY });
-  };
-
-  const onMouseUp = () => {
-    dragStartRef.current = null;
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', onMouseUp);
-    // keep suppress flag briefly so the overlay doesn't receive the click that follows drag
-    setTimeout(() => { suppressOverlayClickRef.current = false; }, 150);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-transparent flex items-start justify-center z-[100]" onClick={(e) => { if (suppressOverlayClickRef.current) { e.stopPropagation(); return; } onClose(); }}>
-      <div
-        ref={modalRef}
-        className="bg-white rounded-lg p-6 w-96 max-w-full shadow-lg select-none"
-        onClick={(e) => e.stopPropagation()}
-        style={pos.x === null && pos.y === null ? { position: 'fixed', left: '50%', top: '50%', transform: 'translate(-50%, -50%) translateY(40px)' } : { position: 'fixed', left: typeof pos.x === 'number' ? `${pos.x}px` : '50%', top: typeof pos.y === 'number' ? `${pos.y}px` : '50%', transform: 'none' }}
-      >
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-xl font-bold mb-0 text-gray-800">{isNewBlock ? 'New Block' : 'Edit Block'}</h2>
-          <button
-            aria-label="Drag handle"
-            onMouseDown={handleMouseDown}
-            className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded select-none cursor-move"
-            style={{ border: '1px solid rgba(0,0,0,0.06)' }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" className="text-gray-600">
-              <path d="M20.69 12.29C20.65 12.38 20.6 12.46 20.53 12.53L18.03 15.03C17.88 15.18 17.69 15.25 17.5 15.25C17.31 15.25 17.12 15.18 16.97 15.03C16.68 14.74 16.68 14.26 16.97 13.97L18.19 12.75H12.75V18.19L13.97 16.97C14.26 16.68 14.74 16.68 15.03 16.97C15.32 17.26 15.32 17.74 15.03 18.03L12.53 20.53C12.46 20.6 12.38 20.65 12.29 20.69C12.2 20.73 12.1 20.75 12 20.75C11.9 20.75 11.8 20.73 11.71 20.69C11.62 20.65 11.54 20.6 11.47 20.53L8.97 18.03C8.68 17.74 8.68 17.26 8.97 16.97C9.26 16.68 9.74 16.68 10.03 16.97L11.25 18.19V12.75H5.81L7.03 13.97C7.32 14.26 7.32 14.74 7.03 15.03C6.88 15.18 6.69 15.25 6.5 15.25C6.31 15.25 6.12 15.18 5.97 15.03L3.47 12.53C3.4 12.46 3.35 12.38 3.31 12.29C3.23 12.11 3.23 11.9 3.31 11.72C3.35 11.63 3.4 11.55 3.47 11.48L5.97 8.98C6.26 8.69 6.74 8.69 7.03 8.98C7.32 9.27 7.32 9.75 7.03 10.04L5.81 11.26H11.25V5.81L10.03 7.03C9.74 7.32 9.26 7.32 8.97 7.03C8.68 6.74 8.68 6.26 8.97 5.97L11.47 3.47C11.54 3.4 11.62 3.35 11.71 3.31C11.89 3.23 12.1 3.23 12.28 3.31C12.37 3.35 12.45 3.4 12.52 3.47L15.02 5.97C15.31 6.26 15.31 6.74 15.02 7.03C14.87 7.18 14.68 7.25 14.49 7.25C14.3 7.25 14.11 7.18 13.96 7.03L12.74 5.81V11.25H18.18L16.96 10.03C16.67 9.74 16.67 9.26 16.96 8.97C17.25 8.68 17.73 8.68 18.02 8.97L20.52 11.47C20.59 11.54 20.64 11.62 20.68 11.71C20.76 11.89 20.76 12.1 20.68 12.28L20.69 12.29Z" fill="currentColor" />
-            </svg>
-          </button>
-        </div>
-        
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 select-text"
-              placeholder="Enter title"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 select-text"
-              placeholder="Enter description"
-              rows={3}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-            <select
-              value={selectedDay}
-              onChange={(e) => setSelectedDay(Number(e.target.value))}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 select-text"
-            >
-              {daysInfo.map((d, idx) => (
-                <option key={idx} value={idx}>
-                  {d.short} {d.num}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
-            <div className="flex items-center gap-2">
-              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-10 h-8 p-0 border-0" />
-              <input type="text" value={color} onChange={(e) => setColor(e.target.value)} className="border border-gray-300 rounded px-3 py-2 text-gray-900 w-full select-text" />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Start Time</label>
-            <select
-              value={startTime ?? ''}
-              onChange={(e) => {
-                const val = e.target.value ? Number(e.target.value) : null;
-                setStartTime(val);
-                if (val !== null && (endTime === null || endTime < val + 0.5)) {
-                  setEndTime(val + 0.5);
-                }
-              }}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 select-text"
-            >
-              <option value="">Select start time</option>
-              {timeOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">End Time</label>
-            <select
-              value={endTime ?? ''}
-              onChange={(e) => setEndTime(e.target.value ? Number(e.target.value) : null)}
-              className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900 select-text"
-              disabled={startTime === null}
-            >
-              <option value="">Select end time</option>
-              {getEndTimeOptions().map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <div className="flex justify-between mt-6">
-          <div>
-            {!isNewBlock && (
-              <button
-                onClick={() => onDelete(block.id)}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-              >
-                Delete
-              </button>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={!title || startTime === null || endTime === null || endTime < startTime + 0.5}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DraggableBlock({ block, onEdit, cellWidth, cellHeight, startHour, maxHour, blockLift }: { block: Block; onEdit: (block: Block) => void; cellWidth: number; cellHeight: number; startHour: number; maxHour: number; blockLift: number }) {
-  const [isHovered, setIsHovered] = useState(false);
-
-  const top = (block.startTime - startHour) * cellHeight + cellHeight / 1.32 + blockLift;
-  const left = block.day * cellWidth;
-  const duration = block.endTime - block.startTime;
-  const height = duration * cellHeight;
-
-  const handleEditClick = (e: React.MouseEvent) => { e.stopPropagation(); onEdit(block); };
-  const handleDeleteClick = (e: React.MouseEvent) => { e.stopPropagation(); onEdit(block); };
-
-  return (
-    <div
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{ position: 'absolute', left: `${left}px`, top: `${top}px`, width: `${cellWidth}px`, height: `${height}px`, zIndex: 30 }}
-    >
-      <div className="text-white rounded p-1 text-sm h-full box-border relative select-none" style={{ backgroundColor: block.color || '#ef4444' }}>
-        {isHovered && (
-          <>
-            <button
-              onClick={handleEditClick}
-              className="edit-button absolute bottom-1 right-8 w-5 h-5 bg-white text-red-500 rounded flex items-center justify-center text-xs hover:bg-gray-100"
-              style={{ zIndex: 40 }}
-            >
-              ✎
-            </button>
-            <button
-              onClick={handleDeleteClick}
-              className="delete-button absolute bottom-1 right-1 w-5 h-5 bg-white text-red-500 rounded flex items-center justify-center text-xs hover:bg-gray-100"
-              style={{ zIndex: 40 }}
-            >
-              ✕
-            </button>
-          </>
-        )}
-        <div className="font-semibold">{block.title || 'Block'}</div>
-        {block.description && <div className="text-xs mt-0.5 opacity-90">{block.description}</div>}
-      </div>
-    </div>
-  );
-}
+import { Block, DayInfo } from '@/types/block';
+import { hourRange, formatHour, formatCurrentTime } from '@/lib/timeUtils';
+import { loadBlocksFromDB, saveBlockToDB, deleteBlockFromDB, mapDBRowToBlock, detectBlockOverlaps } from '@/lib/blockOperations';
+import { useEffectiveToday, useCurrentTime, useDaysInfo, useResponsiveTimeColumn, useGridLayout } from '@/hooks/useTimeblocking';
+import { useCompactView } from '../hooks/useCompactView';
+import BlockEditModal from './BlockEditModal';
+import DraggableBlock from './DraggableBlock';
+import OverlapWarningModal from './OverlapWarningModal';
 
 export default function Timeblocker() {
   const search = useSearchParams();
   const view = search?.get('view') ?? 'week';
   const { user } = useAuth();
   const startHour = 4;
-  // show hours from startHour up through the next-day 3 AM (exclude the final 4 AM row)
   const hours = useMemo(() => hourRange(startHour, startHour + 23), [startHour]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  // container refs to calculate cell sizes
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [cellWidth, setCellWidth] = useState(120);
-  const [gridWidth, setGridWidth] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [cellHeight, setCellHeight] = useState(64);
-  // restore header height so the header area sits above the 4 AM line
-  // reduce headerHeight to tighten whitespace above the chart
+  const { compact, toggleCompact } = useCompactView();
   const headerHeight = 36;
-  // lift the date labels upward to reduce top whitespace
   const headerLift = -16;
-  // lift blocks upward to stay aligned after header height reduction
   const blockLift = -12;
   const desktopTimeColWidth = 50;
   const mobileTimeColWidth = 180;
-  const [timeColWidth, setTimeColWidth] = useState<number>(mobileTimeColWidth);
-  // runtime helpers: ensure we only load DB once
+  
   const loadedOnce = useRef(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [lastSupabaseResponse, setLastSupabaseResponse] = useState<any>(null);
+  const [editingBlock, setEditingBlock] = useState<Block | null>(null);
+  const [overlapWarning, setOverlapWarning] = useState<{ attempted: Block; overlapping: Block[] } | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
-  // in-memory timers and previous states are used (no persistent queue)
+  // Custom hooks
+  const timeColWidth = useResponsiveTimeColumn(view, desktopTimeColWidth, mobileTimeColWidth);
+  const effectiveToday = useEffectiveToday();
+  const currentTime = useCurrentTime();
+  const daysInfo = useDaysInfo(view, effectiveToday);
+  const { cellWidth, gridWidth } = useGridLayout(containerRef, daysInfo.length, timeColWidth);
 
-  // Load blocks from database on mount or when user changes, but only once
+  // Load blocks from database
   React.useEffect(() => {
     const loadBlocks = async () => {
       if (!user) {
@@ -335,40 +52,17 @@ export default function Timeblocker() {
         return;
       }
 
-      // only load once per component lifecycle / session
       if (loadedOnce.current) {
         setIsLoading(false);
         return;
       }
 
-      console.debug('Loading blocks for user', user?.id);
       try {
-        const res = await supabase.from('blocks').select('*').eq('user_id', user.id);
-
-        // log full response for debugging
-        console.debug('Supabase load blocks response:', res);
-        setLastSupabaseResponse(res);
-
-        const { data, error, status } = res as any;
-        if (error) {
-          console.error('Error loading blocks:', { error, status, data });
-          setBlocks([]);
-        } else {
-          // map database rows to our Block shape using the database column names
-          const mapped = (data || []).map((r: any) => ({
-            id: String(r.id),
-            day: Number(r.day),
-            startTime: Number(r.starttime),
-            endTime: Number(r.endtime),
-            title: r.title || '',
-            description: r.description || '',
-            color: r.color || r.colour || '#ef4444',
-          }));
-          console.debug('Mapped blocks:', mapped);
-          setBlocks(mapped);
-        }
-      } catch (error) {
+        const blocks = await loadBlocksFromDB(user.id);
+        setBlocks(blocks);
+      } catch (error: any) {
         console.error('Error loading blocks:', error);
+        setSaveError(error.message || 'Failed to load blocks');
         setBlocks([]);
       } finally {
         setIsLoading(false);
@@ -379,55 +73,15 @@ export default function Timeblocker() {
     loadBlocks();
   }, [user]);
 
-  // Previously there was a mount-time restore for persistent queued saves; removed.
-  React.useEffect(() => {
-    // no-op — persistent queue removed
-  }, []);
-
-  // Save block to database
-  const saveBlockToDB = async (block: Block): Promise<{ success: boolean; data?: any; error?: any; status?: number }> => {
-    if (!user) return { success: false, error: 'no-user' };
-
-    try {
-      const payload = {
-        id: block.id,
-        user_id: user.id,
-        day: block.day,
-        starttime: block.startTime,
-        endtime: block.endTime,
-        title: block.title || '',
-        description: block.description || '',
-        color: block.color || '#ef4444',
-      };
-
-      const res = await supabase.from('blocks').upsert([payload]).select();
-      setLastSupabaseResponse(res);
-      const { data, error, status } = res as any;
-
-      if (error) {
-        console.error('Error saving block:', { error, status, data, payload });
-        return { success: false, error, status };
-      }
-
-      console.debug('Saved block to DB:', data);
-      return { success: true, data, status };
-    } catch (error) {
-      console.error('Error saving block (exception):', error);
-      return { success: false, error };
-    }
-  };
-
-  // Drag & drop / per-block debounced saves removed.
-
-  const [editingBlock, setEditingBlock] = useState<Block | null>(null);
-  const [overlapWarning, setOverlapWarning] = useState<{ attempted: Block; overlapping: Block[] } | null>(null);
+  useEffect(() => {
+    setCellHeight(compact ? 32 : 64);
+  }, [compact]);
 
   const handleEdit = (block: Block) => {
     setEditingBlock(block);
   };
 
   const performSaveBlock = async (updatedBlock: Block) => {
-    // optimistic update: apply immediately, then persist
     const existing = blocks.find((b) => b.id === updatedBlock.id);
     if (existing) {
       setBlocks((prev) => prev.map((b) => (b.id === updatedBlock.id ? updatedBlock : b)));
@@ -435,9 +89,8 @@ export default function Timeblocker() {
       setBlocks((prev) => [...prev, updatedBlock]);
     }
 
-    const res = await saveBlockToDB(updatedBlock);
+    const res = await saveBlockToDB(updatedBlock, user!.id);
     if (!res.success) {
-      // revert
       if (existing) {
         setBlocks((prev) => prev.map((b) => (b.id === updatedBlock.id ? existing : b)));
       } else {
@@ -446,18 +99,8 @@ export default function Timeblocker() {
       setSaveError('Failed to save block. Please try again.');
       window.setTimeout(() => setSaveError(null), 5000);
     } else {
-      // merge canonical row if returned
       if (res.data && Array.isArray(res.data) && res.data[0]) {
-        const r = res.data[0];
-        const canonical: Block = {
-          id: String(r.id),
-          day: Number(r.day),
-          startTime: Number(r.starttime),
-          endTime: Number(r.endtime),
-          title: r.title || '',
-          description: r.description || '',
-          color: r.color || r.colour || '#ef4444',
-        };
+        const canonical = mapDBRowToBlock(res.data[0]);
         setBlocks((prev) => (prev.map((b) => (b.id === canonical.id ? canonical : b))));
       }
     }
@@ -465,151 +108,32 @@ export default function Timeblocker() {
   };
 
   const handleSaveBlock = async (updatedBlock: Block) => {
-    // check for overlaps with other blocks on the same day
-    const overlapping = blocks.filter((b) => b.id !== updatedBlock.id && b.day === updatedBlock.day && updatedBlock.startTime < b.endTime && updatedBlock.endTime > b.startTime);
+    const overlapping = detectBlockOverlaps(blocks, updatedBlock);
     if (overlapping.length > 0) {
-      // show a warning modal letting the user continue or go back to edit
       setOverlapWarning({ attempted: updatedBlock, overlapping });
       return;
     }
-
     await performSaveBlock(updatedBlock);
   };
 
-  // Delete block from database (helper)
-  const deleteBlockFromDB = async (blockId: string) => {
-    if (!user) return { success: false, error: 'no-user' };
-
-    try {
-      const res = await supabase.from('blocks').delete().eq('id', blockId).eq('user_id', user.id).select();
-      const { data, error, status } = res as any;
-      if (error) {
-        console.error('Error deleting block:', { error, status, data });
-        return { success: false, error, status };
-      }
-      console.debug('Deleted block from DB:', { data });
-      return { success: true, data, status };
-    } catch (error) {
-      console.error('Error deleting block:', error);
-      return { success: false, error };
-    }
-  };
-
-  const handleDeleteBlock = (id: string) => {
-    deleteBlockFromDB(id);
+  const handleDeleteBlock = async (id: string) => {
+    if (!user) return;
+    await deleteBlockFromDB(id, user.id);
     setBlocks((prev) => prev.filter((b) => b.id !== id));
     setEditingBlock(null);
   };
 
-  // helper to add a new block in column 0 at a default hour (clamped)
   const addBlock = () => {
     const id = String(Date.now());
-    const defaultTime = 9; // 9 AM
+    const defaultTime = 9;
     const maxHour = startHour + hours.length - 1;
     const startT = Math.max(startHour, Math.min(maxHour, defaultTime));
-    const newBlock: Block = { id, day: 0, startTime: startT, endTime: startT + 1, title: '', description: '', color: '#ef4444' };
+    const newBlock: Block = { id, day: 0, startTime: startT, endTime: startT + 1, title: '', description: '', color: '#3b82f6' };
     setEditingBlock(newBlock);
   };
 
-  // no drag-related timers to cleanup (dragging removed)
-
-  // blocks intentionally empty by default (per request)
-
-  // compute the visible days starting from an "effective today" which rolls over at 4 AM
-  const computeEffectiveToday = (now: Date) => {
-    const eff = new Date(now);
-    // if local time is before 4am, treat it as previous day
-    if (now.getHours() < 4) eff.setDate(eff.getDate() - 1);
-    eff.setHours(0, 0, 0, 0);
-    return eff;
-  };
-
-  const [effectiveToday, setEffectiveToday] = React.useState<Date>(() => computeEffectiveToday(new Date()));
-
-  // schedule an update at the next 4am so the effectiveToday changes automatically
-  React.useEffect(() => {
-    const now = new Date();
-    const next4 = new Date(now);
-    next4.setHours(4, 0, 0, 0);
-    if (next4 <= now) next4.setDate(next4.getDate() + 1);
-    const ms = next4.getTime() - now.getTime();
-    const t = window.setTimeout(() => {
-      setEffectiveToday(computeEffectiveToday(new Date()));
-    }, ms + 50); // slight buffer
-    return () => window.clearTimeout(t);
-  }, [effectiveToday]);
-
-  const daysInfo = (view === 'week'
-    ? Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(effectiveToday);
-        d.setDate(effectiveToday.getDate() + i);
-        return {
-          short: d.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase().slice(0, 3),
-          num: d.getDate(),
-          date: d,
-        };
-      })
-    : Array.from({ length: 2 }, (_, i) => {
-        const d = new Date(effectiveToday);
-        d.setDate(effectiveToday.getDate() + i);
-        return {
-          // label as Today / Tomorrow for day view
-          short: i === 0 ? 'Today' : 'Tomorrow',
-          num: d.getDate(),
-          date: d,
-        };
-      }));
-
-  // shrink the time column on larger screens to match the original desktop width; only use wide column on week view + mobile
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const mq = window.matchMedia('(min-width: 1024px)');
-    const apply = (matches: boolean) => {
-      const isDesktop = matches;
-      const width = view === 'week' && !isDesktop ? mobileTimeColWidth : desktopTimeColWidth;
-      setTimeColWidth(width);
-    };
-    apply(mq.matches);
-    const handler = (e: MediaQueryListEvent) => apply(e.matches);
-    if (mq.addEventListener) {
-      mq.addEventListener('change', handler);
-    } else if ((mq as any).addListener) {
-      (mq as any).addListener(handler);
-    }
-    return () => {
-      if (mq.removeEventListener) {
-        mq.removeEventListener('change', handler);
-      } else if ((mq as any).removeListener) {
-        (mq as any).removeListener(handler);
-      }
-    };
-  }, [view]);
-
-  // compute flexible cell width so columns spread across available space
-  React.useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const resize = () => {
-      const total = el.clientWidth;
-      const days = Math.max(1, daysInfo.length);
-      const available = Math.max(0, total - timeColWidth);
-      const cw = available / days;
-      // ensure a minimum width but allow columns to expand to fill space
-      const clamped = Math.max(160, cw);
-      setCellWidth(clamped);
-      setGridWidth(clamped * days);
-    };
-
-    resize();
-    window.addEventListener('resize', resize);
-    return () => window.removeEventListener('resize', resize);
-  }, [containerRef, daysInfo.length, timeColWidth]);
-
   return (
     <div className="w-full h-full" ref={containerRef} style={{ overflowX: view === 'week' ? 'auto' : 'hidden' }}>
-      {/* top bar removed; Week/Day controls moved to Navbar */}
-
       <div className="w-full h-full">
         {/* header */}
         <div className="flex" style={{ height: headerHeight }}>
@@ -633,13 +157,15 @@ export default function Timeblocker() {
             <div style={{ height: headerHeight }} />
             <div style={{ position: 'relative', height: hours.length * cellHeight }}>
               {hours.map((h, rowIdx) => (
-                <div
-                  key={h}
-                  style={{ position: 'absolute', top: rowIdx * cellHeight - cellHeight / 2, height: cellHeight, right: 8, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}
-                  className="text-xs text-gray-400"
-                >
-                  {formatHour(h)}
-                </div>
+                (!compact || rowIdx % 2 === 0) ? (
+                  <div
+                    key={h}
+                    style={{ position: 'absolute', top: rowIdx * cellHeight - cellHeight / 2, height: cellHeight, right: 8, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}
+                    className="text-xs text-gray-400"
+                  >
+                    {formatHour(h)}
+                  </div>
+                ) : null
               ))}
             </div>
           </div>
@@ -686,9 +212,63 @@ export default function Timeblocker() {
               {blocks
                 .filter((b) => typeof b.day === 'number' && b.day >= 0 && b.day < daysInfo.length)
                 .map((b) => (
-                  <DraggableBlock key={b.id} block={b} onEdit={handleEdit} cellWidth={cellWidth} cellHeight={cellHeight} startHour={startHour} maxHour={startHour + hours.length - 1} blockLift={blockLift} />
+                  <DraggableBlock
+                    key={b.id}
+                    block={b}
+                    onEdit={handleEdit}
+                    cellWidth={cellWidth}
+                    cellHeight={cellHeight}
+                    startHour={startHour}
+                    maxHour={startHour + hours.length - 1}
+                    blockLift={blockLift}
+                    headerHeight={headerHeight}
+                    compact={compact}
+                  />
                 ))}
             </div>
+
+            {/* Current time indicator line */}
+            {(() => {
+              const now = currentTime;
+              const currentHour = now.getHours() + now.getMinutes() / 60;
+              
+              // Check if current time is within our displayed range
+              if (currentHour >= startHour && currentHour < startHour + hours.length) {
+                const top = headerHeight + (currentHour - startHour) * cellHeight;
+                return (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      top: `${top}px`,
+                      width: gridWidth ?? daysInfo.length * cellWidth,
+                      height: 2,
+                      background: '#b91c1c',
+                      zIndex: 50,
+                      pointerEvents: 'none',
+                      boxShadow: '0 0 4px rgba(185, 28, 28, 0.5)',
+                    }}
+                  >
+                    {/* Circle indicator at the start of the line */}
+                    <div
+                      title="Current time"
+                      style={{
+                        position: 'absolute',
+                        left: -4,
+                        top: -3,
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: '#b91c1c',
+                        boxShadow: '0 0 4px rgba(185, 28, 28, 0.8)',
+                        cursor: 'default',
+                      }}
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         </div>
       </div>
@@ -703,44 +283,77 @@ export default function Timeblocker() {
       )}
 
       {overlapWarning && (
-        <div className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-sm flex items-center justify-center z-[110]" onClick={() => setOverlapWarning(null)}>
-          <div className="bg-white rounded-lg p-6 w-96 max-w-full" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-bold mb-2">Overlap warning</h2>
-            <p className="text-sm text-gray-700 mb-4">The block you're creating/editing overlaps with the following block(s). Do you want to continue and save anyway, or go back and adjust the times?</p>
-            <div className="mb-3 text-sm">
-              {overlapWarning.overlapping.map((b) => (
-                <div key={b.id} className="mb-1">
-                  <strong className="mr-2">{b.title || 'Block'}</strong>
-                  <span className="text-gray-600">Day {b.day} — {b.startTime} to {b.endTime}</span>
-                </div>
-              ))}
+        <OverlapWarningModal
+          attempted={overlapWarning.attempted}
+          overlapping={overlapWarning.overlapping}
+          onContinue={async () => {
+            const attempted = overlapWarning.attempted;
+            setOverlapWarning(null);
+            await performSaveBlock(attempted);
+          }}
+          onGoBack={() => {
+            setEditingBlock(overlapWarning.attempted);
+            setOverlapWarning(null);
+          }}
+          onClose={() => setOverlapWarning(null)}
+        />
+      )}
+      {/* floating settings button */}
+      <button onClick={() => setShowSettings(true)} aria-label="Settings" className="fixed right-6 bottom-24 w-12 h-12 bg-gray-500 hover:bg-gray-600 text-white rounded-full shadow-lg flex items-center justify-center z-50">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M19.4 15C19.2669 15.3016 19.2272 15.6362 19.286 15.9606C19.3448 16.285 19.4995 16.5843 19.73 16.82L19.79 16.88C19.976 17.0657 20.1235 17.2863 20.2241 17.5291C20.3248 17.7719 20.3766 18.0322 20.3766 18.295C20.3766 18.5578 20.3248 18.8181 20.2241 19.0609C20.1235 19.3037 19.976 19.5243 19.79 19.71C19.6043 19.896 19.3837 20.0435 19.1409 20.1441C18.8981 20.2448 18.6378 20.2966 18.375 20.2966C18.1122 20.2966 17.8519 20.2448 17.6091 20.1441C17.3663 20.0435 17.1457 19.896 16.96 19.71L16.9 19.65C16.6643 19.4195 16.365 19.2648 16.0406 19.206C15.7162 19.1472 15.3816 19.1869 15.08 19.32C14.7842 19.4468 14.532 19.6572 14.3543 19.9255C14.1766 20.1938 14.0813 20.5082 14.08 20.83V21C14.08 21.5304 13.8693 22.0391 13.4942 22.4142C13.1191 22.7893 12.6104 23 12.08 23C11.5496 23 11.0409 22.7893 10.6658 22.4142C10.2907 22.0391 10.08 21.5304 10.08 21V20.91C10.0723 20.579 9.96512 20.258 9.77251 19.9887C9.5799 19.7194 9.31074 19.5143 9 19.4C8.69838 19.2669 8.36381 19.2272 8.03941 19.286C7.71502 19.3448 7.41568 19.4995 7.18 19.73L7.12 19.79C6.93425 19.976 6.71368 20.1235 6.47088 20.2241C6.22808 20.3248 5.96783 20.3766 5.705 20.3766C5.44217 20.3766 5.18192 20.3248 4.93912 20.2241C4.69632 20.1235 4.47575 19.976 4.29 19.79C4.10405 19.6043 3.95653 19.3837 3.85588 19.1409C3.75523 18.8981 3.70343 18.6378 3.70343 18.375C3.70343 18.1122 3.75523 17.8519 3.85588 17.6091C3.95653 17.3663 4.10405 17.1457 4.29 16.96L4.35 16.9C4.58054 16.6643 4.73519 16.365 4.794 16.0406C4.85282 15.7162 4.81312 15.3816 4.68 15.08C4.55324 14.7842 4.34276 14.532 4.07447 14.3543C3.80618 14.1766 3.49179 14.0813 3.17 14.08H3C2.46957 14.08 1.96086 13.8693 1.58579 13.4942C1.21071 13.1191 1 12.6104 1 12.08C1 11.5496 1.21071 11.0409 1.58579 10.6658C1.96086 10.2907 2.46957 10.08 3 10.08H3.09C3.42099 10.0723 3.742 9.96512 4.0113 9.77251C4.28059 9.5799 4.48572 9.31074 4.6 9C4.73312 8.69838 4.77282 8.36381 4.714 8.03941C4.65519 7.71502 4.50054 7.41568 4.27 7.18L4.21 7.12C4.02405 6.93425 3.87653 6.71368 3.77588 6.47088C3.67523 6.22808 3.62343 5.96783 3.62343 5.705C3.62343 5.44217 3.67523 5.18192 3.77588 4.93912C3.87653 4.69632 4.02405 4.47575 4.21 4.29C4.39575 4.10405 4.61632 3.95653 4.85912 3.85588C5.10192 3.75523 5.36217 3.70343 5.625 3.70343C5.88783 3.70343 6.14808 3.75523 6.39088 3.85588C6.63368 3.95653 6.85425 4.10405 7.04 4.29L7.1 4.35C7.33568 4.58054 7.63502 4.73519 7.95941 4.794C8.28381 4.85282 8.61838 4.81312 8.92 4.68H9C9.29577 4.55324 9.54802 4.34276 9.72569 4.07447C9.90337 3.80618 9.99872 3.49179 10 3.17V3C10 2.46957 10.2107 1.96086 10.5858 1.58579C10.9609 1.21071 11.4696 1 12 1C12.5304 1 13.0391 1.21071 13.4142 1.58579C13.7893 1.96086 14 2.46957 14 3V3.09C14.0013 3.41179 14.0966 3.72618 14.2743 3.99447C14.452 4.26276 14.7042 4.47324 15 4.6C15.3016 4.73312 15.6362 4.77282 15.9606 4.714C16.285 4.65519 16.5843 4.50054 16.82 4.27L16.88 4.21C17.0657 4.02405 17.2863 3.87653 17.5291 3.77588C17.7719 3.67523 18.0322 3.62343 18.295 3.62343C18.5578 3.62343 18.8181 3.67523 19.0609 3.77588C19.3037 3.87653 19.5243 4.02405 19.71 4.21C19.896 4.39575 20.0435 4.61632 20.1441 4.85912C20.2448 5.10192 20.2966 5.36217 20.2966 5.625C20.2966 5.88783 20.2448 6.14808 20.1441 6.39088C20.0435 6.63368 19.896 6.85425 19.71 7.04L19.65 7.1C19.4195 7.33568 19.2648 7.63502 19.206 7.95941C19.1472 8.28381 19.1869 8.61838 19.32 8.92V9C19.4468 9.29577 19.6572 9.54802 19.9255 9.72569C20.1938 9.90337 20.5082 9.99872 20.83 10H21C21.5304 10 22.0391 10.2107 22.4142 10.5858C22.7893 10.9609 23 11.4696 23 12C23 12.5304 22.7893 13.0391 22.4142 13.4142C22.0391 13.7893 21.5304 14 21 14H20.91C20.5882 14.0013 20.2738 14.0966 20.0055 14.2743C19.7372 14.452 19.5268 14.7042 19.4 15V15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      
+      {/* Settings Modal */}
+      {showSettings && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]"
+          onClick={() => setShowSettings(false)}
+        >
+          <div 
+            className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-800">Settings</h2>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="text-gray-500 hover:text-gray-700"
+                aria-label="Close"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  // go back to edit
-                  setEditingBlock(overlapWarning.attempted);
-                  setOverlapWarning(null);
-                }}
-                className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400"
-              >
-                Go back
-              </button>
-              <button
-                onClick={async () => {
-                  // continue and save
-                  const attempted = overlapWarning.attempted;
-                  setOverlapWarning(null);
-                  await performSaveBlock(attempted);
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-              >
-                Continue
-              </button>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">Compact View</h3>
+                  <p className="text-sm text-gray-600">Reduce the height of calendar cells</p>
+                </div>
+                <button
+                  onClick={toggleCompact}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    compact ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                  aria-label="Toggle compact view"
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      compact ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
       {/* floating add button - fixed position so it stays visible when scrolling */}
       <button onClick={addBlock} aria-label="Add block" className="fixed right-6 bottom-6 w-12 h-12 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center z-50">
         <span style={{ fontSize: 20, lineHeight: 0 }}>+</span>

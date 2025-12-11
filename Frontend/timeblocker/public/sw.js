@@ -1,4 +1,4 @@
-﻿const CACHE_NAME = 'timeblocker-shell-v2';
+﻿const CACHE_NAME = 'timeblocker-shell-v4';
 const OFFLINE_URLS = ['/', '/manifest.json', '/icon-192x192.png', '/icon-512x512.png'];
 
 self.addEventListener('install', (event) => {
@@ -37,15 +37,24 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+
   if (request.method !== 'GET' || request.url.startsWith('chrome-extension')) return;
 
+  // Always fetch fresh HTML/navigation requests; fallback to cache if offline
+  if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(request).catch(() => caches.match('/'))
+    );
+    return;
+  }
+
+  // Cache-first for same-origin static assets; skip caching cross-origin
   event.respondWith(
-    caches.match(request)
-      .then((cached) => {
-        if (cached) {
-          return cached;
-        }
-        return fetch(request).then((response) => {
+    caches.match(request).then((cached) => {
+      if (cached) return cached;
+
+      return fetch(request)
+        .then((response) => {
           if (response.ok && request.url.startsWith(self.location.origin)) {
             const copy = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -55,11 +64,11 @@ self.addEventListener('fetch', (event) => {
             });
           }
           return response;
+        })
+        .catch((err) => {
+          console.error('[SW] Fetch error:', err);
+          return caches.match(request);
         });
-      })
-      .catch((err) => {
-        console.error('[SW] Fetch error:', err);
-        return caches.match('/');
-      })
+    })
   );
 });
