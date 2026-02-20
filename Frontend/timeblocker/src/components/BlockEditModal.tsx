@@ -427,7 +427,7 @@ export default function BlockEditModal({ block, daysInfo, onSave, onDelete, onCl
 
       {/* Description Modal */}
       {showDescriptionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[110]" onClick={() => setShowDescriptionModal(false)}>
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[110]" onClick={() => setShowDescriptionModal(false)}>
           <div className="bg-white rounded-lg p-6 w-96 max-w-full shadow-lg" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-bold mb-4 text-gray-800">Description</h3>
             <textarea

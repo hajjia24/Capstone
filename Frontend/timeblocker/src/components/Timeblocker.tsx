@@ -2,10 +2,9 @@
 
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { useAuth } from '@/app/providers';
 import { Block, DayInfo } from '@/types/block';
-import { hourRange, formatHour, formatCurrentTime } from '@/lib/timeUtils';
+import { hourRange, formatHour, formatCurrentTime, timeToDecimal, decimalToTime } from '@/lib/timeUtils';
 import { loadBlocksFromDB, saveBlockToDB, deleteBlockFromDB, mapDBRowToBlock, detectBlockOverlaps } from '@/lib/blockOperations';
 import { useEffectiveToday, useCurrentTime, useDaysInfo, useResponsiveTimeColumn, useGridLayout } from '@/hooks/useTimeblocking';
 import { useCompactView } from '../hooks/useCompactView';
@@ -35,6 +34,36 @@ export default function Timeblocker() {
   const [editingBlock, setEditingBlock] = useState<Block | null>(null);
   const [overlapWarning, setOverlapWarning] = useState<{ attempted: Block; overlapping: Block[] } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showRepeatCreate, setShowRepeatCreate] = useState(false);
+  const [showRepeatManage, setShowRepeatManage] = useState(false);
+
+  type RepeatRule = {
+    id: string;
+    title: string;
+    description: string;
+    color: string;
+    startTime: number;
+    endTime: number;
+    type: 'weekly' | 'interval';
+    weekdays?: number[]; // 0=Sun..6=Sat
+    intervalDays?: number;
+    startDate?: string; // YYYY-MM-DD
+    createdAt: string;
+  };
+
+  const REPEAT_STORAGE_KEY = 'timeblocker.repeatRules';
+  const [repeatRules, setRepeatRules] = useState<RepeatRule[]>([]);
+  const [repeatTitle, setRepeatTitle] = useState('');
+  const [repeatDescription, setRepeatDescription] = useState('');
+  const [repeatColor, setRepeatColor] = useState('#3b82f6');
+  const [repeatStartTime, setRepeatStartTime] = useState('09:00');
+  const [repeatEndTime, setRepeatEndTime] = useState('10:00');
+  const [repeatType, setRepeatType] = useState<'weekly' | 'interval'>('weekly');
+  const [repeatWeekdays, setRepeatWeekdays] = useState<number[]>([new Date().getDay()]);
+  const [repeatIntervalDays, setRepeatIntervalDays] = useState(1);
+  const [repeatStartDate, setRepeatStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [repeatError, setRepeatError] = useState<string | null>(null);
+  const repeatCreateInFlight = useRef(false);
 
   // Custom hooks
   const timeColWidth = useResponsiveTimeColumn(view, desktopTimeColWidth, mobileTimeColWidth);
@@ -42,6 +71,24 @@ export default function Timeblocker() {
   const currentTime = useCurrentTime();
   const daysInfo = useDaysInfo(view, effectiveToday);
   const { cellWidth, gridWidth } = useGridLayout(containerRef, daysInfo.length, timeColWidth);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = window.localStorage.getItem(REPEAT_STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as RepeatRule[];
+      if (Array.isArray(parsed)) setRepeatRules(parsed);
+    } catch {
+      window.localStorage.removeItem(REPEAT_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(REPEAT_STORAGE_KEY, JSON.stringify(repeatRules));
+  }, [repeatRules]);
+
 
   // Load blocks from database
   React.useEffect(() => {
@@ -76,6 +123,92 @@ export default function Timeblocker() {
   useEffect(() => {
     setCellHeight(compact ? 32 : 64);
   }, [compact]);
+
+  const buildDateKey = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const shouldCreateForDate = (rule: RepeatRule, date: Date) => {
+    if (rule.type === 'weekly') {
+      const weekday = date.getDay();
+      return (rule.weekdays || []).includes(weekday);
+    }
+    const start = rule.startDate ? new Date(`${rule.startDate}T00:00:00`) : null;
+    if (!start || !rule.intervalDays || rule.intervalDays < 1) return false;
+    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffMs = dayStart.getTime() - start.getTime();
+    if (diffMs < 0) return false;
+    const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+    return diffDays % rule.intervalDays === 0;
+  };
+
+  const formatRuleSchedule = (rule: RepeatRule) => {
+    if (rule.type === 'weekly') {
+      const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const days = (rule.weekdays || []).map((d) => labels[d]).join(', ');
+      return `Weekly: ${days || 'No days selected'}`;
+    }
+    return `Every ${rule.intervalDays} day(s) starting ${rule.startDate}`;
+  };
+
+  useEffect(() => {
+    const createRepeatingBlocks = async () => {
+      if (!user || isLoading || repeatRules.length === 0) return;
+      if (repeatCreateInFlight.current) return;
+      repeatCreateInFlight.current = true;
+
+      try {
+        const existingIds = new Set(blocks.map((b) => b.id));
+        const createdBlocks: Block[] = [];
+
+        for (const dayInfo of daysInfo) {
+          const dateKey = buildDateKey(dayInfo.date);
+          for (const rule of repeatRules) {
+            if (!shouldCreateForDate(rule, dayInfo.date)) continue;
+
+            const blockId = `repeat-${rule.id}-${dateKey}`;
+            if (existingIds.has(blockId)) continue;
+
+            if (rule.endTime <= rule.startTime) continue;
+
+            const newBlock: Block = {
+              id: blockId,
+              day: daysInfo.indexOf(dayInfo),
+              startTime: rule.startTime,
+              endTime: rule.endTime,
+              title: rule.title,
+              description: rule.description,
+              color: rule.color,
+            };
+
+            const overlaps = detectBlockOverlaps([...blocks, ...createdBlocks], newBlock);
+            if (overlaps.length > 0) continue;
+
+            const res = await saveBlockToDB(newBlock, user.id);
+            if (res.success) {
+              if (res.data && Array.isArray(res.data) && res.data[0]) {
+                createdBlocks.push(mapDBRowToBlock(res.data[0]));
+              } else {
+                createdBlocks.push(newBlock);
+              }
+              existingIds.add(blockId);
+            }
+          }
+        }
+
+        if (createdBlocks.length > 0) {
+          setBlocks((prev) => [...prev, ...createdBlocks]);
+        }
+      } finally {
+        repeatCreateInFlight.current = false;
+      }
+    };
+
+    createRepeatingBlocks();
+  }, [user, isLoading, repeatRules, daysInfo, blocks]);
 
   const handleEdit = (block: Block) => {
     setEditingBlock(block);
@@ -132,9 +265,71 @@ export default function Timeblocker() {
     setEditingBlock(newBlock);
   };
 
+  const resetRepeatForm = () => {
+    setRepeatTitle('');
+    setRepeatDescription('');
+    setRepeatColor('#3b82f6');
+    setRepeatStartTime('09:00');
+    setRepeatEndTime('10:00');
+    setRepeatType('weekly');
+    setRepeatWeekdays([new Date().getDay()]);
+    setRepeatIntervalDays(1);
+    setRepeatStartDate(new Date().toISOString().slice(0, 10));
+    setRepeatError(null);
+  };
+
+  const handleCreateRepeat = () => {
+    setRepeatError(null);
+    const start = timeToDecimal(repeatStartTime);
+    const end = timeToDecimal(repeatEndTime);
+
+    if (start === null || end === null) {
+      setRepeatError('Please enter valid times in HH:MM format.');
+      return;
+    }
+    if (end <= start) {
+      setRepeatError('End time must be after start time.');
+      return;
+    }
+    if (repeatType === 'weekly' && repeatWeekdays.length === 0) {
+      setRepeatError('Select at least one weekday.');
+      return;
+    }
+    if (repeatType === 'interval' && repeatIntervalDays < 1) {
+      setRepeatError('Interval must be at least 1 day.');
+      return;
+    }
+
+    const id = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : String(Date.now());
+
+    const rule: RepeatRule = {
+      id,
+      title: repeatTitle.trim() || 'Repeating Task',
+      description: repeatDescription.trim(),
+      color: repeatColor,
+      startTime: start,
+      endTime: end,
+      type: repeatType,
+      weekdays: repeatType === 'weekly' ? repeatWeekdays : undefined,
+      intervalDays: repeatType === 'interval' ? repeatIntervalDays : undefined,
+      startDate: repeatType === 'interval' ? repeatStartDate : undefined,
+      createdAt: new Date().toISOString(),
+    };
+
+    setRepeatRules((prev) => [...prev, rule]);
+    setShowRepeatCreate(false);
+    resetRepeatForm();
+  };
+
+  const handleDeleteRepeat = (id: string) => {
+    setRepeatRules((prev) => prev.filter((r) => r.id !== id));
+  };
+
   return (
-    <div className="w-full h-full" ref={containerRef} style={{ overflowX: view === 'week' ? 'auto' : 'hidden' }}>
-      <div className="w-full h-full">
+    <div className="w-full h-full relative isolate" ref={containerRef} style={{ overflowX: view === 'week' ? 'auto' : 'hidden' }}>
+      <div className="w-full h-full relative z-0">
         {/* header */}
         <div className="flex" style={{ height: headerHeight }}>
           <div style={{ width: timeColWidth }} />
@@ -216,6 +411,7 @@ export default function Timeblocker() {
                     key={b.id}
                     block={b}
                     onEdit={handleEdit}
+                    onDelete={() => handleDeleteBlock(b.id)}
                     cellWidth={cellWidth}
                     cellHeight={cellHeight}
                     startHour={startHour}
@@ -244,7 +440,7 @@ export default function Timeblocker() {
                       width: gridWidth ?? daysInfo.length * cellWidth,
                       height: 2,
                       background: '#b91c1c',
-                      zIndex: 50,
+                      zIndex: 10,
                       pointerEvents: 'none',
                       boxShadow: '0 0 4px rgba(185, 28, 28, 0.5)',
                     }}
@@ -306,14 +502,13 @@ export default function Timeblocker() {
         </svg>
       </button>
       
-      {/* Settings Modal */}
       {showSettings && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]"
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[120]"
           onClick={() => setShowSettings(false)}
         >
           <div 
-            className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4"
+            className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-6">
@@ -330,6 +525,32 @@ export default function Timeblocker() {
             </div>
 
             <div className="space-y-4">
+              <div className="border border-gray-200 rounded p-3">
+                <h3 className="text-lg font-semibold text-gray-800">Repeating Tasks</h3>
+                <p className="text-sm text-gray-600 mb-3">Create tasks that repeat weekly or every X days.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      resetRepeatForm();
+                      setShowSettings(false);
+                      setShowRepeatCreate(true);
+                    }}
+                    className="px-3 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm w-full sm:w-auto"
+                  >
+                    Create Repeating Task
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowSettings(false);
+                      setShowRepeatManage(true);
+                    }}
+                    className="px-3 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 text-sm w-full sm:w-auto"
+                  >
+                    Manage / Delete
+                  </button>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800">Compact View</h3>
@@ -349,7 +570,231 @@ export default function Timeblocker() {
                   />
                 </button>
               </div>
+
             </div>
+          </div>
+        </div>
+      )}
+
+      {showRepeatCreate && (
+        <div
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[120]"
+          onClick={() => setShowRepeatCreate(false)}
+        >
+          <div
+            className="bg-white rounded-lg p-6 shadow-xl max-w-md w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Create Repeating Task</h2>
+              <button
+                onClick={() => setShowRepeatCreate(false)}
+                className="text-gray-500 hover:text-gray-700"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {repeatError && (
+              <div className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded">
+                {repeatError}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={repeatTitle}
+                  onChange={(e) => setRepeatTitle(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  placeholder="Repeating Task"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <input
+                  type="text"
+                  value={repeatDescription}
+                  onChange={(e) => setRepeatDescription(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                  placeholder="Optional description"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={repeatColor}
+                    onChange={(e) => setRepeatColor(e.target.value)}
+                    className="w-10 h-10 p-0 border-0 bg-transparent"
+                    aria-label="Select color"
+                  />
+                  <span className="text-sm text-gray-600">{repeatColor.toUpperCase()}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start (HH:MM)</label>
+                  <input
+                    type="text"
+                    value={repeatStartTime}
+                    onChange={(e) => setRepeatStartTime(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                    placeholder="09:00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End (HH:MM)</label>
+                  <input
+                    type="text"
+                    value={repeatEndTime}
+                    onChange={(e) => setRepeatEndTime(e.target.value)}
+                    className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                    placeholder="10:00"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Repeat Type</label>
+                <select
+                  value={repeatType}
+                  onChange={(e) => setRepeatType(e.target.value as 'weekly' | 'interval')}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                >
+                  <option value="weekly">Day of the Week</option>
+                  <option value="interval">Repeat every X days</option>
+                </select>
+              </div>
+
+              {repeatType === 'weekly' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Days</label>
+                  <div className="grid grid-cols-7 gap-2">
+                    {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label, idx) => (
+                      <button
+                        key={label}
+                        type="button"
+                        onClick={() => {
+                          setRepeatWeekdays((prev) =>
+                            prev.includes(idx)
+                              ? prev.filter((d) => d !== idx)
+                              : [...prev, idx]
+                          );
+                        }}
+                        className={`px-2 py-1 rounded border text-sm ${
+                          repeatWeekdays.includes(idx)
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-gray-700 border-gray-300'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {repeatType === 'interval' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Every (days)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={repeatIntervalDays}
+                      onChange={(e) => setRepeatIntervalDays(Number(e.target.value))}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={repeatStartDate}
+                      onChange={(e) => setRepeatStartDate(e.target.value)}
+                      className="w-full border border-gray-300 rounded px-3 py-2 text-gray-900"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => setShowRepeatCreate(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateRepeat}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRepeatManage && (
+        <div
+          className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-[120]"
+          onClick={() => setShowRepeatManage(false)}
+        >
+          <div
+            className="bg-white rounded-lg p-6 shadow-xl max-w-lg w-full mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Manage Repeating Tasks</h2>
+              <button
+                onClick={() => setShowRepeatManage(false)}
+                className="text-gray-500 hover:text-gray-700"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {repeatRules.length === 0 ? (
+              <p className="text-sm text-gray-600">No repeating tasks yet.</p>
+            ) : (
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {repeatRules.map((rule) => (
+                  <div key={rule.id} className="border border-gray-200 rounded p-3 flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-gray-800">{rule.title}</div>
+                      {rule.description && <div className="text-sm text-gray-600">{rule.description}</div>}
+                      <div className="text-xs text-gray-500 mt-1">
+                        {formatRuleSchedule(rule)}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {decimalToTime(rule.startTime)} - {decimalToTime(rule.endTime)}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteRepeat(rule.id)}
+                      className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

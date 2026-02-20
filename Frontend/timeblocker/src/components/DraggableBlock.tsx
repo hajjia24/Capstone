@@ -6,6 +6,7 @@ import { Block } from '@/types/block';
 type DraggableBlockProps = {
   block: Block;
   onEdit: (block: Block) => void;
+  onDelete: (block: Block) => void;
   cellWidth: number;
   cellHeight: number;
   startHour: number;
@@ -18,6 +19,7 @@ type DraggableBlockProps = {
 export default function DraggableBlock({ 
   block, 
   onEdit, 
+  onDelete,
   cellWidth, 
   cellHeight, 
   startHour, 
@@ -44,7 +46,7 @@ export default function DraggableBlock({
   
   const handleDeleteClick = (e: React.MouseEvent) => { 
     e.stopPropagation(); 
-    onEdit(block); 
+    onDelete(block); 
   };
 
   return (
@@ -57,7 +59,7 @@ export default function DraggableBlock({
         top: `${top}px`, 
         width: `${cellWidth}px`, 
         height: `${height}px`, 
-        zIndex: 30 
+        zIndex: 5 
       }}
     >
       <div 
@@ -69,14 +71,14 @@ export default function DraggableBlock({
             <button
               onClick={handleEditClick}
               className="edit-button absolute bottom-1 right-8 w-5 h-5 bg-white text-red-500 rounded flex items-center justify-center text-xs hover:bg-gray-100"
-              style={{ zIndex: 40 }}
+              style={{ zIndex: 15 }}
             >
               ✎
             </button>
             <button
               onClick={handleDeleteClick}
               className="delete-button absolute bottom-1 right-1 w-5 h-5 bg-white text-red-500 rounded flex items-center justify-center text-xs hover:bg-gray-100"
-              style={{ zIndex: 40 }}
+              style={{ zIndex: 15 }}
             >
               ✕
             </button>
