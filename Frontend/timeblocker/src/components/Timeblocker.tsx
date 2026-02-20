@@ -527,7 +527,9 @@ export default function Timeblocker() {
             <div className="space-y-4">
               <div className="border border-gray-200 rounded p-3">
                 <h3 className="text-lg font-semibold text-gray-800">Repeating Tasks</h3>
-                <p className="text-sm text-gray-600 mb-3">Create tasks that repeat weekly or every X days.</p>
+                <p className="text-sm text-gray-600 mb-3">
+                  Create a function to add tasks weekly or every X days. These functions are stored <strong>locally</strong>. To make sure tasks are added upon accessing from every platform, create the same function on all platforms.
+                </p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => {
