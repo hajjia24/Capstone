@@ -23,6 +23,7 @@ import {
   hourRange,
   timeToDecimal,
 } from "@/lib/timeUtils";
+import type { Block } from "@/types/block";
 import { useCompactView } from "../hooks/useCompactView";
 import BlockEditModal from "./BlockEditModal";
 import DraggableBlock from "./DraggableBlock";
