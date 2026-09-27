@@ -1108,7 +1108,7 @@ export default function Timeblocker() {
             className="fixed inset-0 bg-black/30 backdrop-blur-sm border-0 p-0 cursor-default"
           />
           <div
-            className="bg-white rounded-lg p-6 shadow-xl max-w-lg w-full mx-4"
+            className="relative z-10 bg-white rounded-lg p-6 shadow-xl max-w-lg w-full mx-4"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {
               if (e.key === "Escape") {
@@ -1118,7 +1118,7 @@ export default function Timeblocker() {
             role="dialog"
             aria-modal="true"
           >
-            <div className="flex justify-between items-center mb-4">
+              <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-800">
                 Manage Repeating Tasks
               </h2>
