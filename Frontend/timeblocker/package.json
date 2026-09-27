@@ -11,26 +11,16 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.0",
-    "@types/markdown-it": "^14.1.2",
-    "acorn": "^8.15.0",
-    "firebase": "^12.4.0",
-    "markdown-it": "^14.1.0",
     "next": "^15.0.0",
     "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "workbox-window": "^7.4.0"
+    "react-dom": "18.2.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.0",
     "@tailwindcss/postcss": "^4",
-    "@types/markdown-it": "^14.1.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "bcryptjs": "^2.4.3",
-    "cross-env": "^10.1.0",
-    "jsonwebtoken": "^9.0.0",
-    "pg": "^8.11.0",
     "tailwindcss": "^4",
     "typescript": "5.9.3"
   },

@@ -1,25 +1,31 @@
-'use client'
+"use client";
 
-import './globals.css'
-import { Providers } from './providers'
-import Navbar from '@/components/Navbar'
-import { Suspense } from 'react'
+import { Suspense } from "react";
+import Navbar from "@/components/Navbar";
+import { Providers } from "./providers";
+import "./globals.css";
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
         <meta name="application-name" content="TimeBlocker" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="TimeBlocker" />
-        <meta name="description" content="Time blocking calendar app for managing your daily schedule" />
+        <meta
+          name="description"
+          content="Time blocking calendar app for managing your daily schedule"
+        />
         <meta name="format-detection" content="telephone=no" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="theme-color" content="#2563eb" />
@@ -38,6 +44,5 @@ export default function RootLayout({
         </Providers>
       </body>
     </html>
-  )
+  );
 }
-

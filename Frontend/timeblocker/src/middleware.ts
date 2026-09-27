@@ -1,19 +1,23 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 export function middleware(req: NextRequest) {
   const url = req.nextUrl;
 
   // Skip static and API routes
-  if (url.pathname.startsWith('/_next') || url.pathname.startsWith('/api') || url.pathname.startsWith('/static')) {
+  if (
+    url.pathname.startsWith("/_next") ||
+    url.pathname.startsWith("/api") ||
+    url.pathname.startsWith("/static")
+  ) {
     return NextResponse.next();
   }
 
   // Force fresh HTML responses (no-store) for navigations
-  const acceptsHTML = req.headers.get('accept')?.includes('text/html');
-  if (req.method === 'GET' && acceptsHTML) {
+  const acceptsHTML = req.headers.get("accept")?.includes("text/html");
+  if (req.method === "GET" && acceptsHTML) {
     const res = NextResponse.next();
-    res.headers.set('Cache-Control', 'no-store');
+    res.headers.set("Cache-Control", "no-store");
     return res;
   }
 
@@ -21,5 +25,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/:path*'],
+  matcher: ["/:path*"],
 };

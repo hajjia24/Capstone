@@ -1,10 +1,10 @@
-'use client'
+"use client";
 
-import Link from 'next/link'
-import { useAuth } from '../app/providers'
+import Link from "next/link";
+import { useAuth } from "../app/providers";
 
 export default function Sidebar() {
-  const { user, signOut } = useAuth()
+  const { user, signOut } = useAuth();
 
   return (
     <>
@@ -14,18 +14,22 @@ export default function Sidebar() {
         <div className="flex items-center gap-4">
           {user ? (
             <button
+              type="button"
               onClick={() => signOut()}
               className="text-sm text-gray-600 hover:text-red-500"
             >
               Sign Out
             </button>
           ) : (
-            <Link href="/login" className="text-sm text-gray-600 hover:text-green-500">
+            <Link
+              href="/login"
+              className="text-sm text-gray-600 hover:text-green-500"
+            >
               Sign In
             </Link>
           )}
         </div>
       </div>
     </>
-  )
+  );
 }
